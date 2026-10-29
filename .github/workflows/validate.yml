@@ -1,4 +1,4 @@
-name: validate
+name: 校验
 
 on:
   push:
@@ -8,21 +8,21 @@ on:
 
 jobs:
   validate:
-    name: Validate skills
+    name: 校验技能清单与脚本
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
+      - name: 检出仓库
         uses: actions/checkout@v4
 
-      - name: Set up Node
+      - name: 准备 Node 环境
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
-      - name: Validate manifests, versions and scripts
+      - name: 校验清单、版本与脚本
         run: python3 scripts/validate_skills.py
 
-      - name: Syntax-check runtime and verifier
+      - name: 检查运行时与验收脚本语法
         run: |
           node --check skills/archify-embed/scripts/embed-runtime.js
           node --check skills/archify-embed/scripts/verify-embed.cjs

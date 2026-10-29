@@ -136,7 +136,7 @@ def main() -> int:
         for e in errors:
             print(" -", e)
         return 1
-    print(f"OK — {len(names)} 个技能，版本 {version}")
+    print(f"校验通过：{len(names)} 个技能，版本 {version}")
     return 0
 
 

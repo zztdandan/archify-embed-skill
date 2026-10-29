@@ -5,7 +5,7 @@ license: MIT
 compatibility: "Node 18+ 用于校验与截图验收（scripts/verify-embed.cjs）；生成的页面本身零依赖，可离线打开。"
 metadata:
   version: 1.1.0
-  tags: [archify, embed, iframe, interactive-diagram, single-page-report, svg]
+  tags: [架构图, 嵌入单页, 交互图, 汇报页, 可编辑文字]
   related_skills: [archify]
 ---
 

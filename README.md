@@ -9,9 +9,9 @@ npx skills add zztdandan/archify-embed-skill    # 装到当前项目
 npx skills add zztdandan/archify-embed-skill -g # 或装到用户级
 ```
 
-[![license](https://img.shields.io/github/license/zztdandan/archify-embed-skill)](./LICENSE)
-[![Agent Skill](https://img.shields.io/badge/agent%20skill-SKILL.md-6f42c1.svg)](./skills/archify-embed/SKILL.md)
-[![validate](https://github.com/zztdandan/archify-embed-skill/actions/workflows/validate.yml/badge.svg)](https://github.com/zztdandan/archify-embed-skill/actions/workflows/validate.yml)
+[![许可证](https://img.shields.io/github/license/zztdandan/archify-embed-skill)](./LICENSE)
+[![技能规范](https://img.shields.io/badge/agent%20skill-SKILL.md-6f42c1.svg)](./skills/archify-embed/SKILL.md)
+[![校验](https://github.com/zztdandan/archify-embed-skill/actions/workflows/validate.yml/badge.svg)](https://github.com/zztdandan/archify-embed-skill/actions/workflows/validate.yml)
 
 [技能清单](#技能清单) · [安装](#安装) · [怎么用](#怎么用) · [坑点清单](#坑点清单) · [变更记录](./CHANGELOG.md)
 
@@ -109,4 +109,4 @@ archify-embed-skill/
 
 ## 许可证
 
-[MIT](./LICENSE)
+[MIT](./LICENSE)。`LICENSE` 保留 MIT 英文原文（法律文本惯例），中文说明以此处为准。
