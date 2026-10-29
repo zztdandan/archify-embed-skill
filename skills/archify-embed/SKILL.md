@@ -1,7 +1,7 @@
 ---
 name: archify-embed
 description: "把 Archify 生成的原生架构图嵌进单页汇报并保持可交互：视窗内详解、页底 JSON 改字、一屏一图、网页内真全屏。附带本轮集成踩过的全部坑与可直接复用的运行时脚本。Archify 的配套技能，不替代它出图。"
-version: 1.0.0
+version: 1.0.1
 license: MIT
 platforms: [linux, macos, windows]
 prerequisites:
@@ -63,41 +63,45 @@ metadata:
 node skills/archify-embed/scripts/verify-embed.cjs ./交付物/汇报单页.html
 ```
 
-## 定高公式
+## 定高
+
+高度不要硬编码 `118`。阅读器的 chrome（标题栏 + 底部导航 + 内边距）随版本和内联样式变化，
+启动时量一次最稳：
 
 ```js
-const CHROME = 118;                 // 阅读器标题栏 + 底部导航 + 内边距
-const ratio  = vbH / vbW;           // 从 svg[data-node-ui] 的 viewBox 读
-const width  = frame.clientWidth - (cardOpen ? 322 : 0);
-const height = Math.min(cap, Math.round(width * ratio + CHROME));
-
-// 一屏一图：高度超过 96vh 时，反过来收窄容器并居中，整图缩放到该高度
-const fitW = (cap - CHROME) / ratio;
-doc.documentElement.style.setProperty('--rv-w', Math.round(fitW) + 'px');
-doc.documentElement.style.setProperty('--rv-left', Math.round((avail - fitW) / 2) + 'px');
+const svg = doc.querySelector('svg[data-node-ui]');
+const [, , vbW, vbH] = svg.getAttribute('viewBox').split(/\s+/).map(Number);
+const chrome = doc.documentElement.scrollHeight - svg.getBoundingClientRect().height;
+const height = Math.round(frame.clientWidth * (vbH / vbW) + chrome);
 ```
 
-对应 CSS：
+一屏一图（面板不超过 96vh）不要靠改容器宽度硬压——阅读器会按高取宽、把 chrome 一起放大，
+形成反馈。改用**它自带的缩放步进**：目标缩放 = 可用高度 ÷ 图在 100% 时的高度，
+按 25% 一档向目标对齐，再用 `data-view-scale` 读回实际值。
 
-```css
-.container{width:var(--rv-w,auto)!important;margin:0 var(--rv-pad,0) 0 var(--rv-left,0)!important}
+```js
+const avail  = cap - svgBox.top - 6;
+const target = Math.min(1, avail / (width * (vbH / vbW)));
+const steps  = Math.round((1 - target) / 0.25);   // 点几次"缩小"
 ```
+
+缩放带动画，循环里读不到新尺寸，所以先按几何算档位、点完再按实际底边补 0–2 档。
 
 ## 网页内全屏的两种状态
 
 | 状态 | 容器宽度 | 纵向 | 适用 |
 |---|---|---|---|
-| 铺满（默认） | 可用宽度全宽 | 允许滚动，**滚动条隐藏**，可滚轮/拖动 | 看图细节，字最大 |
-| 适配整图 | `(窗口高 - 118) / ratio`，居中 | 不滚动，整图可见 | 汇报演示、截图 |
+| 铺满（默认） | 可用宽度全宽 | 图比窗口高，滚动条隐藏，可滚轮/拖动 | 看图细节，字最大 |
+| 适配整图 | `(窗口高 - chrome) / ratio`，居中 | 不滚动，整图可见 | 汇报演示、截图 |
 
 只用 `height:100vh` 会触发"按高取宽"，方形图被挤窄、看起来像有固定宽度上限——这正是
-"点了全屏反而更小"的成因。填充态要显式设容器宽度并隐藏滚动条：
+"点了全屏反而更小"的成因。三个必做项：
 
-```css
-html.rv-fs{scrollbar-width:none}
-html.rv-fs body{overflow-y:auto!important;overflow-x:hidden!important;scrollbar-width:none}
-html.rv-fs body::-webkit-scrollbar{width:0!important;height:0!important;display:none!important}
-```
+1. 全屏壳 `position:fixed; inset:0`，并清掉普通态写过的内联 `height`；
+2. 进全屏前把阅读器缩放到 100%（点"重置"），否则沿用一屏适配的缩放；
+3. 阅读器把 `html` 锁成 `overflow:hidden`，纵向滚动只能挂在 `body` 上：
+   `body.style.height = window.innerHeight + 'px'; body.style.overflowY = 'auto';`
+   滚动条用 `scrollbar-width:none` 与 `::-webkit-scrollbar{display:none}` 隐藏。
 
 ## 文字外置与回写
 

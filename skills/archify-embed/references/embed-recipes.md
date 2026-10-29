@@ -90,8 +90,6 @@ svg[data-node-ui]{max-width:100%!important;height:auto!important}
 ## 4. 定高（父页）
 
 ```js
-const CHROME = 118;
-
 function resizeFrame(id){
   const frame = frames.get(id), doc = frame.contentDocument;
   const svg = doc.querySelector('svg[data-node-ui]');
@@ -99,45 +97,59 @@ function resizeFrame(id){
   const [, , vbW, vbH] = svg.getAttribute('viewBox').split(/\s+/).map(Number);
   const ratio = vbH / vbW;
   const root = doc.documentElement;
+  const shell = frame.closest('.graph-shell');
   const narrow = innerWidth <= 850;
   const pad = cardOpen ? 322 : 0;
-  const shell = frame.closest('.graph-shell');
-  const fs = shell.classList.contains('is-fs');
 
-  if (fs){
+  // chrome 量一次，别写死
+  const chrome = Math.max(60, Math.round(
+    doc.documentElement.scrollHeight - svg.getBoundingClientRect().height));
+
+  if (shell.classList.contains('is-fs')) {
+    shell.style.height = '';
+    if ((Number(svg.getAttribute('data-view-scale')) || 1) !== 1) {
+      doc.querySelector('.diagram-nav button[aria-label*="重置"]')?.click();
+    }
     const h = innerHeight;
     frame.style.height = h + 'px';
+    root.classList.add('rv-fs');
+    root.classList.remove('rv-scaled');
+    root.classList.toggle('rv-fit', fsFit);
+    doc.body.style.height = h + 'px';
+    doc.body.style.overflowY = 'auto';
     const avail = frame.clientWidth - pad;
-    const fitW = Math.min(avail, (h - CHROME) / ratio);
-    const w = fsFit ? fitW : avail;                       // 适配 or 铺满
+    const w = fsFit ? Math.min(avail, (h - chrome) / ratio) : avail;
     root.style.setProperty('--rv-w', Math.round(w) + 'px');
     root.style.setProperty('--rv-left', Math.round((avail - w) / 2) + 'px');
-    root.classList.add('rv-fs'); root.classList.toggle('rv-fit', fsFit);
     return;
   }
 
   root.classList.remove('rv-fs', 'rv-fit');
-  if (narrow){                                            // 手机：按内容定高
-    const h = Math.min(680, doc.documentElement.scrollHeight);
-    frame.style.height = h + 'px'; return;
-  }
+  doc.body.style.height = ''; doc.body.style.overflowY = '';
+  if (narrow) { frame.style.height = Math.min(680, doc.documentElement.scrollHeight) + 'px'; return; }
 
-  const avail = frame.clientWidth - pad;
-  const natural = Math.round(avail * ratio + CHROME);
-  const cap = Math.round(innerHeight * 0.96);             // 一屏一图
-  if (natural <= cap){
-    root.style.removeProperty('--rv-w'); root.style.removeProperty('--rv-left');
-    frame.style.height = natural + 'px';
-  } else {
-    const fitW = (cap - CHROME) / ratio;
-    root.style.setProperty('--rv-w', Math.round(fitW) + 'px');
-    root.style.setProperty('--rv-left', Math.round((avail - fitW) / 2) + 'px');
-    frame.style.height = cap + 'px';
+  const width = frame.clientWidth - pad;
+  const natural = Math.round(width * ratio + chrome);
+  const cap = Math.round(innerHeight * 0.96);
+  frame.style.height = natural + 'px';
+  shell.style.height = Math.min(natural, cap) + 'px';
+
+  // 一屏一图：用阅读器自带的 25% 缩放档位，别改容器宽度（会反馈）
+  const top = svg.getBoundingClientRect().top;
+  const target = natural > cap ? Math.max(0.25, Math.min(1, (cap - top - 6) / (width * ratio))) : 1;
+  const want = Math.max(0.25, 1 - Math.round((1 - target) / 0.25) * 0.25);
+  let now = Number(svg.getAttribute('data-view-scale')) || 1;
+  for (let i = 0; i < 6 && now > want + 1e-3; i++) {
+    doc.querySelector('button[aria-label="缩小"]')?.click();
+    now = Number(svg.getAttribute('data-view-scale')) || now - 0.25;
   }
+  for (let i = 0; i < 6 && now < want - 1e-3; i++) {
+    doc.querySelector('button[aria-label="放大"]')?.click();
+    now = Number(svg.getAttribute('data-view-scale')) || now + 0.25;
+  }
+  root.classList.toggle('rv-scaled', now < 0.999);
 }
 ```
-
----
 
 ## 5. 全屏（网页内，不用 Fullscreen API）
 
@@ -159,10 +171,9 @@ function toggleFullscreen(id){
 .graph-shell.is-fs .graph-caption{display:none}
 body.has-fs{overflow:hidden}
 
-html.rv-fs{scrollbar-width:none}
-html.rv-fs body{overflow-y:auto!important;overflow-x:hidden!important;scrollbar-width:none}
-html.rv-fs body::-webkit-scrollbar{width:0!important;height:0!important;display:none!important}
-html.rv-fit,html.rv-fit body{overflow:hidden!important}
+html.rv-fs,html.rv-fs body{scrollbar-width:none}
+html.rv-fs::-webkit-scrollbar,html.rv-fs body::-webkit-scrollbar{width:0!important;height:0!important;display:none!important}
+html.rv-fit,html.rv-fit body,html.rv-scaled,html.rv-scaled body{overflow:hidden!important}
 ```
 
 ---
