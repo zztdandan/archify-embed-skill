@@ -140,16 +140,20 @@
     style.textContent =
       'html,body{margin:0!important;padding:0!important;overflow-x:hidden!important}' +
       '.archify-toast{display:none!important}' +
-      '.container{max-width:none!important;width:var(--rv-w,auto)!important;' +
-      'margin:0 var(--rv-pad,0) 0 var(--rv-left,0)!important;transition:none}' +
+      '.container{width:var(--rv-w,auto)!important;max-width:100%!important;' +
+      'margin:0 var(--rv-pad,0px) 0 var(--rv-left,0px)!important;transition:none}' +
       '.diagram-container{margin:0!important;border-radius:4px!important}' +
-      'h1{font-size:15px!important;line-height:1.3!important}' +
+      'h1{font-size:15px!important;line-height:1.3!important;white-space:nowrap!important;' +
+      'overflow:hidden!important;text-overflow:ellipsis!important}' +
+      '.rv-tight .header{display:none!important}' +
       '#focus-chip,.reader-rail,.rail-reveal,#rail-reveal,.rail-control,#rail-collapse,#rail-placement{display:none!important;pointer-events:none!important}' +
       'svg[data-node-ui]{max-width:100%!important;height:auto!important}' +
       'html.rv-fs{scrollbar-width:none}' +
       'html.rv-fs body{scrollbar-width:none}' +
       'html.rv-fs::-webkit-scrollbar,html.rv-fs body::-webkit-scrollbar{width:0!important;height:0!important;display:none!important}' +
       'html.rv-fit,html.rv-fit body{overflow:hidden!important}' +
+      'html.rv-scroll,html.rv-scroll body{scrollbar-width:none}' +
+      'html.rv-scroll body::-webkit-scrollbar,html.rv-scroll::-webkit-scrollbar{width:0!important;height:0!important;display:none!important}' +
       'html.rv-scaled,html.rv-scaled body{overflow:hidden!important}' +
       /* 视窗内的工具条与详解卡：必须在 iframe 里也生效，父页样式进不来 */
       '.rv-tools{position:fixed;left:10px;bottom:12px;z-index:30;display:flex;gap:6px;font:13px/1.4 system-ui,"Noto Sans SC",sans-serif}' +
@@ -187,16 +191,16 @@
     var shell = frame.closest('.graph-shell');
     var root = doc.documentElement;
     var narrow = global.innerWidth <= 850;
-    var pad = (view && !view.card.hidden && !narrow) ? CARD_W : 0;
+    var fs = shell.classList.contains('is-fs');
+    // 全屏不再给说明卡预留宽度：卡片浮在图上，进全屏时先收起
+    var pad = (view && !view.card.hidden && !narrow && !fs) ? CARD_W : 0;
     var ratio = vb[3] / vb[2];
-    // 实测 chrome：图以外的标题栏、底部导航与内边距。不同 Archify 版本会有差异，
-    // 用一次量测代替硬编码，后面收窄容器时按它反算宽度。
+    // chrome = 标题栏 + 底部导航 + 内边距，随版本与注入样式变化，量一次再用
     var svgBox = svg.getBoundingClientRect();
-    var chrome = Math.max(60, Math.round(doc.documentElement.scrollHeight - svgBox.height));
+    var chrome = Math.max(80, Math.round(doc.documentElement.scrollHeight - svgBox.height));
 
-    if (shell.classList.contains('is-fs')) {
-      shell.style.height = '';            // 普通态写过的内联高度要让位给 fixed 全屏
-      // 全屏按 100% 显示；普通态为塞进一屏做过的缩放在这里复位。
+    if (fs) {
+      shell.style.height = '';
       if ((Number(svg.getAttribute('data-view-scale')) || 1) !== 1) {
         var rz = doc.querySelector('.diagram-nav button[aria-label*="重置"]');
         if (rz) rz.click();
@@ -204,80 +208,62 @@
       var winH = Math.max(320, global.innerHeight);
       frame.style.height = winH + 'px';
       root.classList.add('rv-fs');
-      root.classList.remove('rv-scaled');
-      // 阅读器把 html 锁成 overflow:hidden，纵向滚动只能由 body 承担。
+      root.classList.remove('rv-scaled', 'rv-scroll');
+      root.classList.toggle('rv-fit', Boolean(view && view.fsFit));
       doc.body.style.height = winH + 'px';
       doc.body.style.overflowY = 'auto';
-   // 普通态的裁切规则会挡住全屏滚动
-      root.classList.toggle('rv-fit', Boolean(view && view.fsFit));
-      var avail = Math.max(280, frame.clientWidth - pad);
-      var fitW = Math.max(280, Math.min(avail, (winH - chrome) / ratio));
-      var w = view && view.fsFit ? fitW : avail;
-      root.style.setProperty('--rv-w', Math.round(w) + 'px');
-      root.style.setProperty('--rv-left', Math.max(0, Math.round((avail - w) / 2)) + 'px');
+      var full = Math.max(280, frame.clientWidth);
+      if (view && view.fsFit) {
+        var fitW = Math.max(320, Math.min(full, (winH - chrome) / ratio));
+        root.style.setProperty('--rv-w', Math.round(fitW) + 'px');
+        root.style.setProperty('--rv-left', Math.max(0, Math.round((full - fitW) / 2)) + 'px');
+        for (var k = 0; k < 2; k++) {
+          var over = doc.documentElement.scrollHeight - frame.clientHeight;
+          if (over <= 4) break;
+          fitW = Math.max(320, fitW - over / ratio);
+          root.style.setProperty('--rv-w', Math.round(fitW) + 'px');
+          root.style.setProperty('--rv-left', Math.max(0, Math.round((full - fitW) / 2)) + 'px');
+        }
+      } else {
+        root.style.setProperty('--rv-w', full + 'px');
+        root.style.setProperty('--rv-left', '0px');
+      }
+      root.classList.toggle('rv-tight', (parseFloat(root.style.getPropertyValue('--rv-w')) || full) < 620);
       return;
     }
 
     root.classList.remove('rv-fs', 'rv-fit');
+    root.style.removeProperty('--rv-w');
+    root.style.removeProperty('--rv-left');
+    root.classList.remove('rv-tight');
     doc.body.style.height = '';
     doc.body.style.overflowY = '';
+
     if (narrow) {
       var mh = Math.min(680, Math.max(320, doc.documentElement.scrollHeight));
-      root.style.removeProperty('--rv-w'); root.style.removeProperty('--rv-left');
+      root.classList.remove('rv-scroll');
       frame.style.height = mh + 'px';
       return;
     }
+
     var width = frame.clientWidth - pad;
     var natural = Math.round(width * ratio + chrome);
     var cap = Math.max(420, Math.round(global.innerHeight * 0.96));
     var shellEl = frame.closest('.graph-shell');
-    root.style.removeProperty('--rv-w');
-    root.style.removeProperty('--rv-left');
-    root.classList.remove('rv-scaled', 'rv-fit');
-
-    // 一屏一图：先按自然高度排版，超过上限就用阅读器自带的缩放步进缩小，
-    // 直到整张图落进一屏。走它的缩放接口，不要自己改 svg 的 transform。
-    frame.style.height = natural + 'px';
-    var zoomOut = function () {
-      var b = doc.querySelector('button[aria-label="缩小"]');
-      if (!b) return false;
-      b.click();
-      return true;
-    };
-    var reset = function () {
-      var b = doc.querySelector('.diagram-nav button[aria-label*="重置"]');
-      if (b) b.click();
-    };
-    // 目标缩放只由几何决定：可用高度 ÷ 图在 100% 时的高度。
-    var box0 = svg.getBoundingClientRect();
-    var top0 = box0.top || 0;
-    var naturalSvgH = Math.max(1, width * ratio);
-    var avail = Math.max(120, cap - top0 - 6);
-    var target = natural > cap ? Math.max(0.25, Math.min(1, avail / naturalSvgH)) : 1;
-    var stepsWanted = Math.round((1 - target) / 0.25);
-    var scaleNow = Number(svg.getAttribute('data-view-scale')) || 1;
-    var wantScale = Math.max(0.25, 1 - stepsWanted * 0.25);
-    var guard = 0;
-    while (scaleNow > wantScale + 0.001 && guard < 6) {
-      if (!zoomOut()) break;
-      scaleNow = Number(svg.getAttribute('data-view-scale')) || scaleNow - 0.25;
-      guard++;
+    if (natural <= cap) {
+      root.classList.remove('rv-scroll');
+      frame.style.height = natural + 'px';
+      if (shellEl) shellEl.style.height = natural + 'px';
+    } else {
+      // 一屏一图：宽度保持满宽（字号不变），高度收在 96vh，超出部分图内滚动
+      doc.body.style.height = cap + 'px';
+      doc.body.style.overflowY = 'auto';
+      root.classList.add('rv-scroll');
+      frame.style.height = cap + 'px';
+      if (shellEl) shellEl.style.height = cap + 'px';
     }
-    guard = 0;
-    while (scaleNow < wantScale - 0.001 && guard < 6) {
-      var zin = doc.querySelector('button[aria-label="放大"]');
-      if (!zin) break;
-      zin.click();
-      scaleNow = Number(svg.getAttribute('data-view-scale')) || scaleNow + 0.25;
-      guard++;
-    }
-    root.classList.toggle('rv-scaled', wantScale < 0.999);
-    var fitted = Math.min(cap, Math.max(320, doc.documentElement.scrollHeight));
-    frame.style.height = fitted + 'px';
-    if (shellEl) shellEl.style.height = fitted + 'px';
   }
 
-  /* ---------- 详解卡 ---------- */
   function showDetail(id, sel) {
     var view = state.views.get(id);
     if (!view) return;
@@ -368,8 +354,16 @@
     if (!view) return;
     var shell = view.frame.closest('.graph-shell');
     var on = !state.fs.has(id);
-    if (on) { state.fs.add(id); shell.classList.add('is-fs'); document.body.classList.add('has-fs'); }
-    else { state.fs.delete(id); shell.classList.remove('is-fs'); if (!state.fs.size) document.body.classList.remove('has-fs'); }
+    if (on) {
+      state.fs.add(id); shell.classList.add('is-fs'); document.body.classList.add('has-fs');
+      // 全屏先把说明卡收起：卡片浮层会压住画布右侧的节点
+      view.cardWasOpen = !view.card.hidden;
+      toggleCard(id, false);
+    } else {
+      state.fs.delete(id); shell.classList.remove('is-fs');
+      if (!state.fs.size) document.body.classList.remove('has-fs');
+      if (view.cardWasOpen) toggleCard(id, true);
+    }
     view.fsButton.textContent = on ? '退出全屏' : '全屏';
     view.fitButton.hidden = !on;
     view.fitButton.textContent = view.fsFit ? '铺满窗口' : '适配整图';
@@ -385,6 +379,7 @@
       view.frame.closest('.graph-shell').classList.remove('is-fs');
       view.fsButton.textContent = '全屏';
       view.fitButton.hidden = true;
+      if (view.cardWasOpen) toggleCard(id, true);
       resizeFrame(id);
     });
     document.body.classList.remove('has-fs');
@@ -444,6 +439,25 @@
     doc.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && state.fs.size) closeFullscreen();
     });
+    // 滚动条隐藏后，拖动要能代替滚动（普通态溢出与全屏铺满都适用）
+    var drag = null;
+    doc.addEventListener('pointerdown', function (e) {
+      var v = state.views.get(id);
+      if (!v || v.fsFit) return;
+      if (e.button !== 0 || e.target.closest('.rv-card,.rv-tools,.diagram-nav,.reader-rail,.focus-chip')) return;
+      var scrollable = doc.body.scrollHeight > doc.body.clientHeight + 4;
+      if (!state.fs.has(id) && !scrollable) return;
+      drag = { y: e.clientY, top: doc.body.scrollTop };
+      doc.body.style.cursor = 'grabbing';
+    });
+    doc.addEventListener('pointermove', function (e) {
+      if (!drag) return;
+      doc.body.scrollTop = drag.top - (e.clientY - drag.y);
+    });
+    var endDrag = function () { if (drag) { drag = null; doc.body.style.cursor = ''; } };
+    doc.addEventListener('pointerup', endDrag);
+    doc.addEventListener('pointercancel', endDrag);
+
     doc.addEventListener('click', function (e) {
       if (e.target.closest('.rv-card,.rv-tools')) return;
       var t = e.target.closest ? e.target.closest('g[data-node-id],g[data-relationship-id]') : null;

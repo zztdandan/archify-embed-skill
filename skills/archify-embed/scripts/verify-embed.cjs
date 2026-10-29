@@ -70,16 +70,26 @@ function chromePath() {
         pageH: document.documentElement.scrollHeight,
         frames: Array.from(document.querySelectorAll('iframe')).map((f) => {
           const d = f.contentDocument;
+          const card = d.querySelector('.rv-card');
+          const pad = card && !card.hidden ? 322 : 0;
           return {
             id: f.id, h: f.clientHeight,
             crop: d.documentElement.scrollHeight > f.clientHeight + 3,
-            innerOverflow: d.documentElement.scrollWidth > f.clientWidth + 3
+            innerOverflow: d.documentElement.scrollWidth > f.clientWidth + 3,
+            widthOk: Math.abs(d.querySelector('.container').getBoundingClientRect().width
+              - (f.clientWidth - pad)) < 8,
+            scrollOverflow: d.body.scrollHeight - d.body.clientHeight,
+            barHidden: getComputedStyle(d.body).scrollbarWidth === 'none'
           };
         })
       }));
       if (m.overflowX) throw new Error(vp.width + '：页面横向溢出');
       for (const fr of m.frames) {
-        if (fr.crop) throw new Error(vp.width + '：' + fr.id + ' 内容被裁切');
+        if (fr.innerOverflow) throw new Error(vp.width + '：' + fr.id + ' 横向溢出');
+        if (vp.width > 850 && !fr.widthOk) throw new Error(vp.width + '：' + fr.id + ' 容器宽度与可用宽度不一致（被压窄）');
+        if (fr.scrollOverflow > 4 && !fr.barHidden) {
+          throw new Error(vp.width + '：' + fr.id + ' 内容溢出却显示滚动条');
+        }
       }
       report.checks.push({ viewport: vp, ...m });
       if (shots) await page.screenshot({ path: path.join(shots, 'vp-' + vp.width + '.png') });
@@ -121,11 +131,13 @@ function chromePath() {
         full: Math.round(shell.getBoundingClientRect().width) === window.innerWidth &&
               Math.round(shell.getBoundingClientRect().height) === window.innerHeight,
         scrollable: d.body.scrollHeight > d.body.clientHeight + 5,
+        cardCollapsed: !!d.querySelector('.rv-card') && d.querySelector('.rv-card').hidden,
         barHidden: getComputedStyle(d.documentElement).scrollbarWidth === 'none' || d.documentElement.offsetWidth >= d.documentElement.clientWidth,
         visibleTop: Math.round(svg.top) >= 0
       };
     }, firstId);
     if (!fsState || !fsState.full) throw new Error('全屏未铺满窗口');
+    if (!fsState.cardCollapsed) throw new Error('全屏未收起说明卡，会遮挡右侧节点');
     if (!fsState.scrollable) throw new Error('全屏未按宽度放大（内容未溢出，可能被压扁）');
     report.checks.push({ fullscreen: fsState });
 

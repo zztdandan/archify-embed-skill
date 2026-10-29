@@ -25,13 +25,15 @@
 
 **成因**：阅读器按宽度渲染，SVG 高度 = 宽度 × 高宽比，iframe 只有 660px 就必然裁。
 
-**做法**：按公式一次算定高度：
+**做法**：高度 = 宽度 × 高宽比 + chrome，其中 **chrome 必须实测**：
 
 ```js
-height = Math.round(frameWidth * (vbH / vbW) + 118)
+const chrome = doc.documentElement.scrollHeight - svg.getBoundingClientRect().height;
+const height = Math.round(frameWidth * (vbH / vbW) + chrome);
 ```
 
-`118` 是标题栏 + 底部导航 + 内边距的固定 chrome，实测稳定。
+chrome 是标题栏 + 底部导航 + 内边距之和，会随阅读器版本、注入样式、卡片是否让位而变化。
+早期把 `118` 当常数用，换一版样式后实测已到 145，直接导致底部被裁 80–190px。
 
 **验收**：`frame.contentDocument.documentElement.scrollHeight <= frame.clientHeight + 2`。
 
@@ -44,8 +46,8 @@ height = Math.round(frameWidth * (vbH / vbW) + 118)
 **成因**：阅读器有 `intrinsic-height` 适配，iframe 变高它会放大 SVG，`scrollHeight`
 随之变大，循环永不收敛。
 
-**做法**：不要循环。用第 2 条的公式算一次；只有内容确实溢出时，用 CSS 变量收窄容器宽度，
-让高度自然落回目标值。
+**做法**：不要循环。用第 2 条的公式算一次。内容真的溢出时**不要收窄容器**——那会让标题栏
+被压成两栏、标题竖排，图也变小；改用第 5 条的"一屏内滚动"。
 
 **验收**：连续触发 3 次 resize，iframe 高度不再变化。
 
@@ -70,10 +72,20 @@ height = Math.round(frameWidth * (vbH / vbW) + 118)
 
 **成因**：面板高度跟着图的高宽比走，方形图在 1280 版心里就是 1400px。
 
-**做法**：给面板设上限（如 96vh）；超限时反算容器宽度 `(cap - 118) / ratio` 并居中，
-让整图缩到一屏内。
+**做法**：面板高度封顶 96vh，但**宽度保持满宽**，让字保持原大；比面板高的部分在图内滚动，
+滚动条隐藏、支持拖动：
 
-**验收**：每个 `iframe.clientHeight <= innerHeight`。
+```js
+doc.body.style.height = cap + 'px';
+doc.body.style.overflowY = 'auto';
+root.classList.add('rv-scroll');       // html.rv-scroll 隐藏滚动条
+```
+
+只有"必须整图一屏、且能接受字变小"的场合（截图、投屏），才用阅读器自带的 25% 缩放档位
+把整图缩进一屏。**不要**用收窄容器宽度去换高度，那会同时压小字号并压垮标题栏。
+
+**验收**：`iframe.clientHeight <= innerHeight`；若内容溢出，`body.scrollbarWidth === 'none'`
+且可拖动滚动。
 
 ---
 
@@ -203,6 +215,72 @@ height = Math.round(frameWidth * (vbH / vbW) + 118)
 **做法**：位移超过 3px 才判定为拖拽；拖拽期间吞掉 click。
 
 **验收**：拖动 60px 后松开，卡片不切换；原地点击正常切换。
+
+---
+
+## 15. 两条 `.container` 宽度规则互相打架
+
+**现象**：图突然缩成一条窄带、标题竖排，或者右侧出现大片空白；换一张图又正常。
+
+**成因**：注入样式中同时存在两条都带 `!important` 的容器宽度规则——一条 `width:100%`、
+一条 `width:var(--rv-w)`。谁生效取决于注入顺序，而不同路径（初次渲染 / 打开说明卡 /
+重新应用 JSON）注入顺序并不一致。
+
+**做法**：容器宽度只留**一条**规则，统一走 CSS 变量；不要在多处重复声明同一属性。
+排查时直接搜注入的 style 文本里 `.container{` 出现几次。
+
+```css
+.container{width:var(--rv-w,auto)!important;max-width:100%!important;
+  margin:0 var(--rv-pad,0px) 0 var(--rv-left,0px)!important}
+```
+
+**验收**：在 1885×927 与 1600×1000 两档下，三张图的容器宽度都等于 `frameWidth - 卡片宽`
+（卡片打开时），没有一张明显偏窄。
+
+---
+
+## 16. 容器一窄，标题被挤成一列
+
+**现象**：图上方标题变成"集/团/主/湖"一列竖排，右侧工具条占了大半行。
+
+**成因**：阅读器标题栏是标题 + 工具条的一行布局；容器窄到某个阈值后标题被压到几十像素，
+中文逐字换行。
+
+**做法**：两条一起做——标题永不折行（`white-space:nowrap` + 省略号），并在容器窄于约 620px 时
+直接隐藏图内标题栏，标题交给页面标题与图注承担。
+
+```css
+h1{white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+.rv-tight .header{display:none!important}
+```
+
+**验收**：任意宽度下 `h1` 高度不超过一行（约 26px），且不存在逐字竖排。
+
+---
+
+## 17. 全屏时说明卡压住右侧节点
+
+**现象**：全屏铺满后，右侧节点被说明卡盖住，读不全。
+
+**成因**：铺满态让容器占满整宽（为了字大），说明卡是浮层，自然就压在图上。
+
+**做法**：进入全屏先把说明卡收起，退出时按进入前的状态恢复；需要看详解时再点"详解"打开。
+这样默认视图既满宽又不遮挡。
+
+**验收**：进全屏后 `card.hidden === true`，画布宽度等于窗口宽；退出后卡片回到进入前的状态。
+
+---
+
+## 18. 隐藏了滚动条，却忘了给拖动
+
+**现象**：图内溢出但看不到滚动条，滚轮又不一定生效（焦点在别处），用户以为内容没了。
+
+**成因**：只做了 `scrollbar-width:none`，没补拖动。
+
+**做法**：溢出时给容器加拖动滚动（`pointerdown/move/up`，位移超过 3px 才算拖动），
+普通态与全屏态都要。阈值同样是为了不误触节点点击。
+
+**验收**：图内溢出时，按住空白处拖动 60px，`body.scrollTop` 随之变化。
 
 ---
 
