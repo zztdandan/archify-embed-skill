@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>汇报单页</title>
+<link rel="stylesheet" href="embed.css">
+</head>
+<body>
+<div id="report-root"></div>
+
+<!-- 一份 JSON 管全部可改文字；结构见 references/data-model.md -->
+<script id="report-content" type="application/json">
+{
+  "formatVersion": 1,
+  "report": {
+    "category": "建设规划汇报",
+    "title": "标题",
+    "lead": "开篇结论。",
+    "highlights": ["要点一", "要点二", "要点三"],
+    "sections": [
+      { "id": "overview", "title": "总体架构", "blocks": [
+        { "type": "paragraph", "text": "说明。" },
+        { "type": "diagram", "diagramId": "overview" }
+      ] }
+    ]
+  },
+  "diagrams": [
+    {
+      "id": "overview",
+      "title": "图标题",
+      "caption": "图注",
+      "summary": "整体说明",
+      "points": ["整体要点"],
+      "initialNode": "n1",
+      "nodes": {
+        "n1": { "label": "节点", "sublabel": "副标题", "tag": "脚注", "summary": "说明", "points": ["职责"] }
+      },
+      "edges": {},
+      "groups": {}
+    }
+  ]
+}
+</script>
+
+<!-- 原生 Archify HTML 的 base64；用打包脚本生成，不要手写 -->
+<script id="graph-assets" type="application/json">{}</script>
+
+<script src="embed-runtime.js"></script>
+</body>
+</html>

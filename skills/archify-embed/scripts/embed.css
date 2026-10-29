@@ -1,0 +1,82 @@
+/* archify-embed 页面样式：汇报正文 + 视窗 + 视窗内详解卡
+ * 与 scripts/embed-runtime.js 配套；可按项目覆盖配色与字号。
+ */
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: #fff; color: #17334b;
+  font: 16px/1.55 system-ui, "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased; }
+
+/* 版心：单页汇报控制在 1280，避免宽屏拉散 */
+#report-root { max-width: 1280px; margin: 0 auto; }
+
+.report-header { padding: 14px 18px 12px; background: #08243d; color: #fff; border-top: 3px solid #39b7c2; }
+.report-header .category { margin: 0 0 3px; font-size: 11px; letter-spacing: 2px; color: #80d9df; }
+.report-header h1 { margin: 0; font-size: 25px; line-height: 1.35; }
+
+.report-nav { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 5px;
+  padding: 5px 16px; background: #ffffffee; border-bottom: 1px solid #dce6ed; backdrop-filter: blur(8px); }
+.report-nav a { padding: 3px 9px; font-size: 12px; border-radius: 5px;
+  color: #245a7c; background: #f0f6fa; text-decoration: none; }
+.report-nav a:hover { background: #dfeef6; }
+
+main { padding: 0 16px 10px; }
+.lead { font-size: 17px; line-height: 1.6; margin: 10px 0; }
+.highlights { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  margin: 0 0 12px; padding: 0; list-style: none; }
+.highlights li { padding: 8px 10px; font-size: 14px; line-height: 1.5;
+  background: #f0f6fa; border-left: 2px solid #1d9eac; }
+
+.report-section { padding: 12px 0 14px; border-top: 1px solid #dce6ed; scroll-margin-top: 52px; }
+.report-section h2 { margin: 0 0 8px; font-size: 20px; line-height: 1.35; color: #0b395c; }
+p { margin: 6px 0 9px; }
+
+/* 图外壳：面板高度由运行时用内联 height 控制 */
+.graph-shell { position: relative; margin: 10px 0; border: 1px solid #d6e2ea; border-radius: 5px; overflow: hidden; }
+.graph-shell.is-fs { position: fixed; inset: 0; z-index: 9999; margin: 0; border: 0;
+  border-radius: 0; background: #fff; display: flex; flex-direction: column; }
+.graph-shell.is-fs .graph-caption { display: none; }
+body.has-fs { overflow: hidden; }
+
+.native-graph { display: block; width: 100%; height: 660px; border: 0; background: #f4f5f7; }
+.graph-caption { margin: 0; padding: 6px 9px; font-size: 12px; line-height: 1.5;
+  color: #5d7487; border-top: 1px solid #e0e8ef; background: #fbfcfd; }
+
+/* 视窗内的工具条与详解卡（在 iframe 文档里生效，见 embed-runtime 注入的样式） */
+.rv-tools { position: fixed; left: 10px; bottom: 12px; z-index: 30; display: flex; gap: 6px;
+  font: 13px/1.4 system-ui, "Noto Sans SC", sans-serif; }
+.rv-tools button { padding: 6px 11px; border: 1px solid #cfdbe6; border-radius: 6px;
+  background: #fffffff2; color: #134a6c; font: inherit; cursor: pointer; box-shadow: 0 3px 12px #0d2b4414; }
+.rv-tools button[aria-pressed="true"] { background: #0f6ea8; border-color: #0f6ea8; color: #fff; }
+
+.rv-card { position: fixed; right: 10px; top: 62px; bottom: 12px; width: 302px;
+  max-width: calc(100% - 20px); z-index: 29; display: flex; flex-direction: column;
+  background: #fff; color: #16344b; border: 1px solid #d3e0ea; border-radius: 9px;
+  box-shadow: 0 12px 34px #0b294417; font: 13px/1.6 system-ui, "Noto Sans SC", sans-serif; }
+.rv-card[hidden] { display: none; }
+.rv-head { display: flex; align-items: center; gap: 8px; padding: 9px 11px;
+  border-bottom: 1px solid #e4ecf2; background: #f5f9fc; border-radius: 9px 9px 0 0; }
+.rv-head strong { flex: 1; font-size: 12px; color: #3c6684; }
+.rv-close { border: 0; background: none; color: #5c7a8f; font-size: 17px; line-height: 1; cursor: pointer; }
+.rv-body { flex: 1; overflow: auto; padding: 11px 13px 15px; }
+.rv-body h3 { margin: 0 0 6px; font-size: 17px; line-height: 1.35; color: #0b3b5c; }
+.rv-body h4 { margin: 12px 0 5px; font-size: 12px; color: #31556e; }
+.rv-tag { margin: 0 0 9px; padding-left: 7px; font-size: 12px; color: #0f7488; border-left: 3px solid #2bb4bb; }
+.rv-rel { margin: 4px 0 8px; padding: 0; list-style: none; }
+.rv-rel li { padding: 4px 0; border-bottom: 1px solid #eef2f6; }
+.rv-link { border: 0; background: none; padding: 0; color: #0a67a3; font: inherit; font-size: 12.5px; cursor: pointer; text-align: left; }
+.rv-note { display: block; margin-top: 1px; font-size: 11.5px; color: #67808f; }
+
+@media (max-width: 850px) {
+  .highlights { grid-template-columns: 1fr; }
+  .native-graph { height: 520px; }
+  .rv-card { top: 52px; right: 8px; left: 8px; width: auto; max-height: 64%; }
+  .rv-tools { left: 8px; bottom: 8px; }
+}
+
+@media print {
+  .report-nav { display: none; }
+  .graph-shell { break-inside: avoid; }
+  .rv-card, .rv-tools { display: none !important; }
+}

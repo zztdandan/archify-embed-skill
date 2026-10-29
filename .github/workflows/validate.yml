@@ -1,0 +1,28 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Validate skills
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Validate manifests, versions and scripts
+        run: python3 scripts/validate_skills.py
+
+      - name: Syntax-check runtime and verifier
+        run: |
+          node --check skills/archify-embed/scripts/embed-runtime.js
+          node --check skills/archify-embed/scripts/verify-embed.cjs
