@@ -25,20 +25,37 @@ INTERNAL_HOST = re.compile(r"\b(?:172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|10
 REQUIRED = ("name", "description", "version", "license")
 
 
-def parse_frontmatter(text: str) -> dict[str, str]:
+def parse_frontmatter(text: str) -> dict:
+    """解析 SKILL.md 的 YAML frontmatter；有 PyYAML 就用它，否则退回扁平解析。"""
     if not text.startswith("---\n"):
         raise ValueError("缺少 frontmatter")
     end = text.find("\n---\n", 4)
     if end == -1:
         raise ValueError("frontmatter 未闭合")
-    fields: dict[str, str] = {}
-    for line in text[4:end].splitlines():
+    raw = text[4:end]
+    try:
+        import yaml  # 可选依赖；不存在时走下面的扁平解析
+        data = yaml.safe_load(raw)
+        if isinstance(data, dict):
+            return data
+    except Exception:  # noqa: BLE001
+        pass
+    fields: dict = {}
+    for line in raw.splitlines():
         if not line or line[0] in " \t#-":
             continue
         key, sep, value = line.partition(":")
         if sep:
             fields[key.strip()] = value.strip().strip('"').strip("'")
     return fields
+
+
+def skill_version(fields: dict) -> str:
+    """版本允许写在 metadata.version（Agent Skills 规范）或顶层 version（历史形态）。"""
+    meta = fields.get("metadata")
+    if isinstance(meta, dict) and meta.get("version"):
+        return str(meta["version"])
+    return str(fields.get("version") or "")
 
 
 def main() -> int:
@@ -67,13 +84,18 @@ def main() -> int:
         except ValueError as exc:
             errors.append(f"{name}: {exc}")
             continue
-        for key in REQUIRED:
+        allowed = {"name", "description", "license", "allowed-tools", "metadata", "compatibility"}
+        extra = set(fields) - allowed
+        if extra:
+            errors.append(f"{name}: frontmatter 出现规范外字段 {', '.join(sorted(extra))}")
+        for key in ("name", "description"):
             if not fields.get(key):
                 errors.append(f"{name}: frontmatter 缺少 {key}")
         if fields.get("name") != name:
             errors.append(f"{name}: frontmatter name 与目录不一致")
-        if fields.get("version") and fields["version"] != version:
-            errors.append(f"{name}: 版本 {fields['version']} 与 VERSION {version} 不一致")
+        declared = skill_version(fields)
+        if declared and declared != version:
+            errors.append(f"{name}: 版本 {declared} 与 VERSION {version} 不一致")
 
     # 脚本语法
     node = shutil.which("node")

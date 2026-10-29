@@ -1,132 +1,93 @@
 ---
 name: archify-embed
-description: "把 Archify 生成的原生架构图嵌进单页汇报并保持可交互：视窗内详解、页底 JSON 改字、一屏一图、网页内真全屏。附带本轮集成踩过的全部坑与可直接复用的运行时脚本。Archify 的配套技能，不替代它出图。"
-version: 1.0.1
+description: "把 Archify 生成的原生架构图嵌进一个可转发的单页汇报，并保持可交互：点节点看视窗内详解、页底 JSON 统一改字、一屏一图、网页内真全屏。只要任务里出现「把几张架构图做成给领导看的单页/汇报页」「图在网页里还要能缩放、点开看说明」「图里的文字要能自己改」「嵌 iframe 后图被裁切、有滚动条、全屏变小或点按钮就崩」这类诉求，就用本技能，哪怕用户没点名 Archify。它是 archify 的配套技能：出图仍交给 archify，本技能负责嵌入、排版、验收与交付形态。"
 license: MIT
-platforms: [linux, macos, windows]
-prerequisites:
-  commands: ["node"]
-  note: "只用 Node 做校验与截图验收；页面本身零依赖、可离线打开。"
+compatibility: "Node 18+ 用于校验与截图验收（scripts/verify-embed.cjs）；生成的页面本身零依赖，可离线打开。"
 metadata:
-  hermes:
-    tags:
-      - archify
-      - embed
-      - iframe
-      - interactive-diagram
-      - single-page-report
-      - svg
-    related_skills: [archify]
-    category: document
+  version: 1.1.0
+  tags: [archify, embed, iframe, interactive-diagram, single-page-report, svg]
+  related_skills: [archify]
 ---
 
 # archify-embed — 把 Archify 图变成可交付的单页汇报
 
-配合 `archify` 使用：`archify` 负责出图（candidate JSON → 原生 HTML），本技能负责
-**把若干张原生图嵌进一个可转发的 HTML**，并解决嵌入后必然遇到的一批问题。
+`archify` 负责出图（candidate JSON → 自包含的交互 HTML），本技能负责把 2–5 张图收进**一个**
+可转发、可离线打开的文件，并处理嵌入后必然出现的那批问题：裁切、滚动条、全屏失效、
+侧栏按钮点崩、改字不生效。
 
-> 下文 `scripts/...` 均相对本技能目录（`SKILL.md` 所在处）。
+先判断处境，再跳到对应步骤：
 
-## 什么时候用
+- 还没出图 → 先用 `archify` 的 `finalize` 拿到原生 HTML，再回来。
+- 已有原生 HTML，要合成一页 → 从「四步流程」开始。
+- 已经嵌好但出问题（裁切、全屏、改字）→ 直接按现象查
+  [references/pitfalls.md](references/pitfalls.md)。
 
-- 要把 2–5 张 Archify 图收进一个单文件 HTML 给领导/客户看；
-- 要求图能缩放、点节点看详解，而不是截图；
-- 正文、图内标签、详解需要**外置成 JSON**，方便用户自己改字；
-- 需要"网页内全屏"（不用浏览器 Fullscreen API）把某张图放大。
+## 四步流程
 
-只出一张图、不需要外置文字时，直接用 `archify` 的 `finalize`，不必引入本技能。
-
-## 三条硬规则
-
-1. **别和阅读器的尺寸反馈对抗。** 参考实现按**宽度**撑满渲染：SVG 宽 = 容器宽，
-   高 = 宽 × viewBox 高宽比，另加约 118px 的阅读器 chrome。iframe 高度必须一次算定：
-   `height = (frameWidth - 右侧说明栏宽度) × (vbH / vbW) + 118`。
-   反复"量 scrollHeight 再加高"会与 `intrinsic-height` 互相放大，面板越调越高。
-2. **隐藏阅读器自带侧栏，并加回归测试。** `.rail-reveal`（"要点与索引"）在
-   `.reader-rail` 之外，只藏父容器无效；它按视口和 localStorage 条件出现，点开后会挤掉画布、
-   让缩放失灵。必须 `display:none!important; pointer-events:none`，并把
-   `#rail-collapse` / `#rail-placement` 一起处理。
-3. **iframe 里的键盘事件不会冒泡到父页。** Esc 退出全屏这类快捷键必须挂到每个
-   frame 的 `document` 上，且每次重连后重挂。
-
-## 快速开始
-
-1. 先用 `archify` 出图，拿到若干份原生 HTML（自包含，含 viewer）。
-2. 把每份 HTML 用 base64 塞进父页的 `<script type="application/json" id="graph-assets">`，
-   正文与逐节点文案放进 `#report-content`（结构见
-   [references/data-model.md](references/data-model.md)）。
-3. 用 [scripts/embed-runtime.js](scripts/embed-runtime.js) 作为父页运行时：
-   写 `srcdoc`、注入文字补丁、按公式定高、视窗内详解、全屏铺满/适配、JSON 编辑与下载。
-4. 跑 [scripts/verify-embed.cjs](scripts/verify-embed.cjs) 做三档视口验收，再人工看图。
+1. **出图并压紧画布。** 用 `archify` 生成；节点之间空得厉害时，改候选 JSON 的
+   `components[].pos/size` 与 `boundaries[].pad` 再重新 `finalize`。压缩画布要用布局解决，
+   靠页面缩放只是把留白连同文字一起缩小。
+2. **打包成数据。** 每份原生 HTML 转 base64 放进父页 `#graph-assets`；正文、图内标签、
+   逐节点文案放进 `#report-content`，结构见 [references/data-model.md](references/data-model.md)。
+   文字只留一份 JSON，是因为用户经常要自己改措辞，散在 DOM 里既改不动也带不走。
+3. **接运行时。** 引入 `scripts/embed.css` 与 `scripts/embed-runtime.js`，页面留一个
+   `<div id="report-root">` 即可渲染：文字补丁、定高、视窗内详解、全屏、JSON 应用与下载
+   都在里面。
+4. **验收后再交。** 跑 `scripts/verify-embed.cjs` 做三档视口与交互断言，再人工看截图。
+   机器过闸不等于好看，尤其要确认图没有被压到看不清字。
 
 ```bash
-node skills/archify-embed/scripts/verify-embed.cjs ./交付物/汇报单页.html
+node skills/archify-embed/scripts/verify-embed.cjs ./交付物/汇报单页.html --shots ./验收截图
 ```
 
-## 定高
+## 为什么这几处必须这样写
 
-高度不要硬编码 `118`。阅读器的 chrome（标题栏 + 底部导航 + 内边距）随版本和内联样式变化，
-启动时量一次最稳：
+每条都对应一个真实故障，换个写法就会复发。
 
-```js
-const svg = doc.querySelector('svg[data-node-ui]');
-const [, , vbW, vbH] = svg.getAttribute('viewBox').split(/\s+/).map(Number);
-const chrome = doc.documentElement.scrollHeight - svg.getBoundingClientRect().height;
-const height = Math.round(frame.clientWidth * (vbH / vbW) + chrome);
-```
+**高度按宽度算，不要用 `100vh` 定高。** 阅读器按宽度撑满渲染：SVG 宽 = 容器宽，
+高 = 宽 × viewBox 高宽比，另有标题栏与底部导航。给 iframe 一个 `100vh` 会让它「按高取宽」，
+方形图被挤窄，看起来像有个莫名其妙的宽度上限。先量一次 chrome
+（`documentElement.scrollHeight - svg.height`）再按比例算高度；chrome 随版本和内联样式变化，
+不要写死数字。
 
-一屏一图（面板不超过 96vh）不要靠改容器宽度硬压——阅读器会按高取宽、把 chrome 一起放大，
-形成反馈。改用**它自带的缩放步进**：目标缩放 = 可用高度 ÷ 图在 100% 时的高度，
-按 25% 一档向目标对齐，再用 `data-view-scale` 读回实际值。
+**不要写「量高度不够就加高」的循环。** 阅读器会随面板变高放大图，量出来的高度又变大，
+循环不收敛，最后仍然被裁。
 
-```js
-const avail  = cap - svgBox.top - 6;
-const target = Math.min(1, avail / (width * (vbH / vbW)));
-const steps  = Math.round((1 - target) / 0.25);   // 点几次"缩小"
-```
+**一屏一图要靠阅读器自己的缩放。** 面板超过 96vh 时，用 CSS 改容器宽度去压会再次触发
+「按高取宽」的反馈；改用其自带的 25% 缩放档位：按几何算目标档位、点对应次数，
+再用 `data-view-scale` 读回实际值。缩放带动画，循环里读不到新尺寸，所以点完要按实际底边补档。
 
-缩放带动画，循环里读不到新尺寸，所以先按几何算档位、点完再按实际底边补 0–2 档。
+**全屏要显式给宽度，并把滚动挂到 body。** 阅读器把 `html` 锁成 `overflow:hidden`，
+纵向滚动只能由 `body` 承担；铺满态把容器宽度设成可用宽度、隐藏滚动条、允许滚轮与拖动，
+适配态按 `(窗口高 - chrome) / ratio` 收窄居中。进全屏前先把一屏适配留下的缩放复位，
+否则全屏会沿用缩小后的比例。
 
-## 网页内全屏的两种状态
+**隐藏「要点与索引」。** `.rail-reveal` 在 `.reader-rail` 之外，只藏父容器管不住；它按视口
+和 localStorage 条件出现，点开会在布局里插一栏，画布被挤窄、缩放失灵。要连
+`#rail-collapse` / `#rail-placement` 一起 `display:none` 加 `pointer-events:none`，
+并留一条「取消 hidden 再点击，尺寸不变」的回归断言。
 
-| 状态 | 容器宽度 | 纵向 | 适用 |
-|---|---|---|---|
-| 铺满（默认） | 可用宽度全宽 | 图比窗口高，滚动条隐藏，可滚轮/拖动 | 看图细节，字最大 |
-| 适配整图 | `(窗口高 - chrome) / ratio`，居中 | 不滚动，整图可见 | 汇报演示、截图 |
+**键盘与拖动挂在 iframe 的 document 上。** 焦点在图里时按键不冒泡到父页，Esc 会失效；
+拖动设 3px 阈值，否则平移会误触节点。
 
-只用 `height:100vh` 会触发"按高取宽"，方形图被挤窄、看起来像有固定宽度上限——这正是
-"点了全屏反而更小"的成因。三个必做项：
+## 交付形态
 
-1. 全屏壳 `position:fixed; inset:0`，并清掉普通态写过的内联 `height`；
-2. 进全屏前把阅读器缩放到 100%（点"重置"），否则沿用一屏适配的缩放；
-3. 阅读器把 `html` 锁成 `overflow:hidden`，纵向滚动只能挂在 `body` 上：
-   `body.style.height = window.innerHeight + 'px'; body.style.overflowY = 'auto';`
-   滚动条用 `scrollbar-width:none` 与 `::-webkit-scrollbar{display:none}` 隐藏。
+- 一个 HTML 交付；旧版与过程文件进 `.archived/` 并写迁移清单，别让收件人挑版本。
+- 页面零外部请求、断网可开，这点在验收脚本里直接断言。
+- 文字链路要闭合「改 → 应用 → 下载 → 重开仍是新值」，否则改字只活在内存里。
 
-## 文字外置与回写
+## 参考文件
 
-- 所有可改文字（标题、正文、节点 label/sublabel/tag、连线标签、分区名、逐节点详解）
-  只存 JSON，页面渲染时再套用；**保留固定 id**，校验 id 集合不变才允许应用。
-- 打补丁要同时改：SVG `<text>`、`data-node-*` / `data-edge-label` 属性、`aria-label`、
-  `<title>`、以及阅读器自己的节点查找索引。长标签按可用宽度回缩字号。
-- 序列化进 `<script>` 时把 `<` 转成 `\u003c`，渲染一律 `textContent`，否则
-  `</script>` 会截断页面。
-- "下载修改后的完整网页"要把当前 JSON 写回 `#report-content` 并清空渲染 DOM，
-  否则重新打开看到的是旧文案。
+- 按现象查故障（裁切、全屏、侧栏、改字、下载丢失等 14 类）→
+  [references/pitfalls.md](references/pitfalls.md)：每条给现象、成因、做法、验收。
+- 想抄现成代码（文字补丁、定高、全屏、拖动、标签回缩）→
+  [references/embed-recipes.md](references/embed-recipes.md)。
+- 设计或校验外置 JSON 的字段 → [references/data-model.md](references/data-model.md)。
+- 直接开页 → `scripts/template.html`、`scripts/embed.css`、`scripts/embed-runtime.js`。
+- 验收与回归 → `scripts/verify-embed.cjs`。
 
-## 验收清单
+## 写评测用例时
 
-- [ ] 1600×1000、1366×768、390×844 三档：无横向溢出，图不被裁切。
-- [ ] 点击节点/连线，视窗内说明卡更新；卡片开启时图收窄而不被遮挡。
-- [ ] 全屏进入后窗口铺满、无可见滚动条；退出后恢复原面板高度。
-- [ ] 强制显示并点击 `.rail-reveal`：尺寸不变、缩放仍可用（回归）。
-- [ ] 改 JSON → 应用 → 下载 → 重开：文案与图内标签都保留。
-- [ ] 页面零外部请求，断网可打开。
-
-## 参考
-
-- [references/pitfalls.md](references/pitfalls.md) — 本轮踩过的 14 个坑，逐条给现象、成因、做法、验收。
-- [references/embed-recipes.md](references/embed-recipes.md) — 可直接抄的代码段。
-- [references/data-model.md](references/data-model.md) — 外置 JSON 的结构与校验规则。
-- [scripts/embed-runtime.js](scripts/embed-runtime.js) — 父页运行时（定高、详解、全屏、JSON、下载）。
-- [scripts/verify-embed.cjs](scripts/verify-embed.cjs) — Puppeteer 验收脚本。
+`evals/evals.json` 放的是真实用户会说的话（「把这三张图做成给领导看的单页，图还能点开看说明」），
+而不是「测试嵌入功能」。它用来检验两件事：描述能不能被正确触发，以及成品是否真的没有裁切、
+滚动条和失效的全屏。

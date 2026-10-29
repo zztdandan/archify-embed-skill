@@ -21,7 +21,7 @@ npx skills add zztdandan/archify-embed-skill -g # 或装到用户级
 
 | 技能 | 干什么 | 依赖 |
 |------|--------|------|
-| [`archify-embed`](./skills/archify-embed/SKILL.md) | 把 Archify 原生 HTML 嵌进单页汇报：视窗内详解、页底 JSON 改字、定高公式、一屏一图、网页内全屏（铺满/适配双态）、下载回写 | `node`（仅验收与校验用；页面本身零依赖） |
+| [`archify-embed`](./skills/archify-embed/SKILL.md) | 把 Archify 原生 HTML 嵌进单页汇报：视窗内详解、页底 JSON 改字、实测 chrome 定高、一屏一图、网页内全屏（铺满/适配双态）、下载回写 | `node`（仅验收与校验用；页面本身零依赖） |
 
 出图仍由 `archify` 负责：先用它 `finalize` 拿到原生 HTML，再用本技能嵌入。
 
@@ -68,6 +68,11 @@ cp -R skills/archify-embed ~/.agents/skills/          # 通用 Agent Skills 宿�
 
 结构说明见 [`references/data-model.md`](./skills/archify-embed/references/data-model.md)，
 可直接抄的代码见 [`references/embed-recipes.md`](./skills/archify-embed/references/embed-recipes.md)。
+
+## 评测用例
+
+`skills/archify-embed/evals/evals.json` 放了三条真实用户口径的用例（做单页、嵌入后裁切/全屏异常、侧栏按钮点崩），
+用来检查描述的触发面与成品质量；按 skill-creator 的约定，断言在跑用例时补。
 
 ## 坑点清单
 

@@ -1,5 +1,16 @@
 # 变更记录
 
+## 1.1.0 — 2026-10-29
+
+按 skill-creator 规范重写元数据与正文：
+
+- frontmatter 只保留 name / description / license / compatibility / metadata；版本移入
+  `metadata.version`，去掉规范外的 platforms、prerequisites 顶层字段。
+- description 改为覆盖真实触发语（单页汇报、可交互、改字、嵌 iframe 出问题），不再只描述能力。
+- 正文改为「处境判断 → 四步流程 → 为什么这样写 → 交付形态 → 参考导航」，按需指向 references。
+- 新增 `evals/evals.json`：三条真实用户口径的评测用例。
+- 仓库校验脚本支持 `metadata.version`，并对 frontmatter 顶层字段做白名单检查。
+
 ## 1.0.1 — 2026-10-29
 
 - 定高改为启动时实测 chrome，去掉硬编码 118。
